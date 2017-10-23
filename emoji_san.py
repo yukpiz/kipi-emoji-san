@@ -18,17 +18,7 @@ URL = "https://{team_name}.slack.com/customize/emoji"
 
 def lambda_handler(event, context):
     load_dotenv(join(dirname(__file__), ".env"))
-    payload = command(event)
-
-    return { "statusCode": 200, "body": json.dumps(payload) }
-
-def command(parameters):
-    if parameters["command"] == "/emojisan":
-        return command_emojisan(parameters)
-    else:
-        return {
-            "text": "Not supported command: %s" % parameters["command"]
-        }
+    command_emojisan(event)
 
 def command_emojisan(parameters):
     image = download_image(parameters["image_url"])
@@ -37,7 +27,7 @@ def command_emojisan(parameters):
     session = requests.session()
     session.headers = {"Cookie": os.environ["SLACK_COOKIE"]}
     session.url = URL.format(team_name=os.environ["SLACK_TEAM"])
-    e = upload_emoji(session, parameters["emoji_name"], "/tmp/temp.jpg")
+    upload_emoji(session, parameters["emoji_name"], "/tmp/temp.jpg")
     notify_slack(parameters)
 
 def download_image(url):
@@ -62,7 +52,13 @@ def upload_emoji(session, emoji_name, filename):
         'mode': 'data',
     }
     files = {'img': open(filename, 'rb')}
-    return session.post(session.url, data=data, files=files, allow_redirects=False)
+    return session.post(session.url, data=data, files=files, allow_redirects=True)
+
+def error_slack(parameters, text):
+    payload = {
+        "text": "Failed to upload: [:%s:]\n%s" % (parameters["emoji_name"], text)
+    }
+    requests.post(parameters["response_url"], data=json.dumps(payload))
 
 def notify_slack(parameters):
     payload = {
