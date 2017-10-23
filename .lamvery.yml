@@ -1,0 +1,12 @@
+profile: null
+region: ap-northeast-1
+versioning: false
+default_alias: master
+configuration:
+  name: kipi-emoji-san
+  runtime: python2.7
+  role: {{ env['AWS_LAMBDA_ROLE'] }}
+  handler: emoji_san.lambda_handler
+  description: Kipi Emoji San
+  timeout: 30
+  memory_size: 128
