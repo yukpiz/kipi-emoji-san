@@ -11,31 +11,16 @@ from PIL import Image
 from StringIO import StringIO
 from os.path import join, dirname
 from dotenv import load_dotenv
+from bs4 import BeautifulSoup
 import upload
 
 URL = "https://{team_name}.slack.com/customize/emoji"
 
 def lambda_handler(event, context):
     load_dotenv(join(dirname(__file__), ".env"))
-    parameters = parse_token(event["body"])
-    payload = command(parameters)
+    payload = command(event)
 
     return { "statusCode": 200, "body": json.dumps(payload) }
-
-def parse_token(token):
-    parsed = urlparse.parse_qs(token)
-    return {
-        "user_id": parsed["user_id"][0],
-        "channel_id": parsed["channel_id"][0],
-        "text": parsed["text"][0],
-        "response_url": parsed["response_url"][0],
-        "team_id": parsed["team_id"][0],
-        "channel_name": parsed["channel_name"][0],
-        "token": parsed["token"][0],
-        "command": parsed["command"][0],
-        "team_domain": parsed["team_domain"][0],
-        "user_name": parsed["user_name"][0],
-    }
 
 def command(parameters):
     if parameters["command"] == "/emojisan":
@@ -46,16 +31,14 @@ def command(parameters):
         }
 
 def command_emojisan(parameters):
-    image = download_image(parameters["text"])
+    image = download_image(parameters["image_url"])
     image = resize_image(image)
     image.save("/tmp/temp.jpg", "JPEG")
     session = requests.session()
     session.headers = {"Cookie": os.environ["SLACK_COOKIE"]}
     session.url = URL.format(team_name=os.environ["SLACK_TEAM"])
-    upload_emoji(session, "hogehoge", "/tmp/temp.jpg")
-    return {
-        "text": "Emoji Sanです %s" % (parameters["text"])
-    }
+    e = upload_emoji(session, parameters["emoji_name"], "/tmp/temp.jpg")
+    notify_slack(parameters)
 
 def download_image(url):
     response = requests.get(url)
@@ -79,4 +62,10 @@ def upload_emoji(session, emoji_name, filename):
         'mode': 'data',
     }
     files = {'img': open(filename, 'rb')}
-    session.post(session.url, data=data, files=files, allow_redirects=False)
+    return session.post(session.url, data=data, files=files, allow_redirects=False)
+
+def notify_slack(parameters):
+    payload = {
+        "text": "Success upload: [:%s:]" % parameters["emoji_name"]
+    }
+    requests.post(parameters["response_url"], data=json.dumps(payload))
